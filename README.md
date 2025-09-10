@@ -1,6 +1,8 @@
 # BodyAdjust Matcher
 
-desc
+ボーンスケール/移動/MA Scale Adjusterの改変を服に転送するツール
+
+不要なoverrideは省くのが特徴です（不完全）
 
 ## Install
 
@@ -16,7 +18,7 @@ https://github.com/Narazaka/BodyAdjustMatcher/releases/latest から `net.naraza
 
 ## Usage
 
-TODO
+アバターにMAで着せた服のArmatureを右クリックして、「Adjust Body Match (on Cloth Armature)」を実行する。
 
 ## License
 

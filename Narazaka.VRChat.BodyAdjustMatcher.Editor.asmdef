@@ -1,0 +1,18 @@
+{
+    "name": "Narazaka.VRChat.BodyAdjustMatcher.Editor",
+    "rootNamespace": "",
+    "references": [
+        "nadena.dev.modular-avatar.core"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
