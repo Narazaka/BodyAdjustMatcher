@@ -1,6 +1,6 @@
 {
   "name": "net.narazaka.vrchat.body-adjust-matcher",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "displayName": "BodyAdjust Matcher",
   "description": "ボーンスケール/移動/MA Scale Adjusterの改変を服に転送するツール",
   "author": {
