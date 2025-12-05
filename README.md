@@ -20,6 +20,11 @@ https://github.com/Narazaka/BodyAdjustMatcher/releases/latest から `net.naraza
 
 アバターにMAで着せた服のArmatureを右クリックして、「Adjust Body Match (on Cloth Armature)」を実行する。
 
+## 更新履歴
+
+- v0.1.1: 複数Armatureを一括で処理できるように / アバターのアーマチュア名"armature"も許可
+- v0.1.0: リリース
+
 ## License
 
 [Zlib License](LICENSE.txt)
