@@ -10,7 +10,15 @@ public class BodyAdjustMatcher
     [MenuItem("GameObject/Adjust Body Match (on Cloth Armature)")]
     static void DoMatch()
     {
-        var go = Selection.activeGameObject;
+        var gos = Selection.gameObjects;
+        foreach (var go in gos)
+        {
+            DoMatch(go);
+        }
+    }
+
+    static void DoMatch(GameObject go)
+    {
         var root = go.GetComponentInParent<VRCAvatarDescriptor>();
         if (root == null)
         {
@@ -18,6 +26,7 @@ public class BodyAdjustMatcher
             return;
         }
         var rootArmature = root.transform.Find("Armature");
+        if (rootArmature == null) rootArmature = root.transform.Find("armature");
         if (rootArmature == null)
         {
             EditorUtility.DisplayDialog("ERROR", "No Armature found in VRCAvatarDescriptor hierarchy.", "OK");
