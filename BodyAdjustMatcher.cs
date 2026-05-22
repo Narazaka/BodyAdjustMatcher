@@ -19,24 +19,32 @@ public class BodyAdjustMatcher
 
     static void DoMatch(GameObject go)
     {
+        var mergeArmature = go.GetComponentInChildren<ModularAvatarMergeArmature>();
+        if (mergeArmature != null)
+        {
+            go = mergeArmature.gameObject;
+        }
+
         var root = go.GetComponentInParent<VRCAvatarDescriptor>();
         if (root == null)
         {
             EditorUtility.DisplayDialog("ERROR", "No VRCAvatarDescriptor found in parent hierarchy.", "OK");
             return;
         }
-        var rootArmature = root.transform.Find("Armature");
+        var rootArmature = mergeArmature == null ? null : mergeArmature.mergeTargetObject.transform;
+        if (rootArmature == null) rootArmature = root.transform.Find("Armature");
         if (rootArmature == null) rootArmature = root.transform.Find("armature");
         if (rootArmature == null)
         {
             EditorUtility.DisplayDialog("ERROR", "No Armature found in VRCAvatarDescriptor hierarchy.", "OK");
             return;
         }
-
-        AdjustRecursive(rootArmature, go.transform);
+        var prefix = mergeArmature == null ? "" : mergeArmature.prefix;
+        var suffix = mergeArmature == null ? "" : mergeArmature.suffix;
+        AdjustRecursive(rootArmature, go.transform, prefix, suffix);
     }
 
-    static void AdjustRecursive(Transform body, Transform cloth)
+    static void AdjustRecursive(Transform body, Transform cloth, string prefix, string suffix)
     {
         if (body == null || cloth == null)
         {
@@ -82,10 +90,10 @@ public class BodyAdjustMatcher
         for (int i = 0; i < body.childCount; i++)
         {
             var childBody = body.GetChild(i);
-            var childCloth = cloth.Find(childBody.name);
+            var childCloth = cloth.Find(prefix + childBody.name + suffix);
             if (childCloth != null)
             {
-                AdjustRecursive(childBody, childCloth);
+                AdjustRecursive(childBody, childCloth, prefix, suffix);
             }
         }
     }
