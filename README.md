@@ -22,6 +22,7 @@ https://github.com/Narazaka/BodyAdjustMatcher/releases/latest から `net.naraza
 
 ## 更新履歴
 
+- v0.2.0: MA Merge Armatureが付いていればその情報を利用するように
 - v0.1.1: 複数Armatureを一括で処理できるように / アバターのアーマチュア名"armature"も許可
 - v0.1.0: リリース
 
