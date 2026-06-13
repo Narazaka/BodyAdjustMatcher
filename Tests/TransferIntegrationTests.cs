@@ -143,5 +143,56 @@ namespace Narazaka.VRChat.BodyAdjustMatcher.Editor.Tests
             Assert.That(Vector3.Distance(clothBone.position, bodyBone.position), Is.LessThan(0.002f),
                 "衣装位置が素体のworld移動へ追従していない");
         }
+
+        // bindpose 欠如（restLookup 空）のフォールバックでも、未改変なら衣装は自身の rest を保持し、
+        // 素体基準のクリーン90°位置へ引きずられて中途半端な角度にならないこと。
+        // 素体ボーンは自然に傾いており(30°X)、衣装はそこからクリーンな90°Yオフセットを持つ。
+        [Test]
+        public void Fallback_UnmodifiedBody_KeepsClothRotation_WhenNoBindpose()
+        {
+            root = new GameObject("root");
+            var bodyArm = Child(root.transform, "BodyArm", Vector3.zero, Quaternion.identity);
+            var clothArm = Child(root.transform, "ClothArm", Vector3.zero, Quaternion.identity);
+            var bodyLocal = Quaternion.AngleAxis(30f, Vector3.right);
+            var clothLocal = bodyLocal * Quaternion.AngleAxis(90f, Vector3.up);
+            var bodyBone = Child(bodyArm, "Bone", new Vector3(0f, 1f, 0f), bodyLocal);
+            var clothBone = Child(clothArm, "Bone", new Vector3(0f, 1f, 0f), clothLocal);
+            // SkinnedMeshRenderer を一切付けない → BuildRestRotationLookup は空 → 全ボーンがフォールバック経路
+
+            var clothRotBefore = clothBone.localRotation;
+
+            RunAdjust(bodyArm, clothArm);
+
+            Assert.That(Quaternion.Angle(clothBone.localRotation, clothRotBefore), Is.LessThan(0.1f),
+                "フォールバックでも未改変なら衣装は自身のrestを保持すべき（素体基準の中途半端な角度に動かない）");
+        }
+
+        // bindpose 欠如のフォールバックでも、素体の小さな回転改変(<45°)は world delta として転送され、
+        // 余計な90°が乗らないこと。
+        [Test]
+        public void Fallback_ModifiedBody_TransfersWorldDelta_WhenNoBindpose()
+        {
+            root = new GameObject("root");
+            var bodyArm = Child(root.transform, "BodyArm", Vector3.zero, Quaternion.identity);
+            var clothArm = Child(root.transform, "ClothArm", Vector3.zero, Quaternion.identity);
+            var bodyLocal = Quaternion.AngleAxis(30f, Vector3.right);
+            var clothLocal = bodyLocal * Quaternion.AngleAxis(90f, Vector3.up);
+            var bodyBone = Child(bodyArm, "Bone", new Vector3(0f, 1f, 0f), bodyLocal);
+            var clothBone = Child(clothArm, "Bone", new Vector3(0f, 1f, 0f), clothLocal);
+
+            var bodyRestWorld = bodyBone.rotation;
+            var clothRestWorld = clothBone.rotation;
+
+            // 小さな改変(15°Z, < 45°)
+            var delta = Quaternion.AngleAxis(15f, Vector3.forward);
+            bodyBone.localRotation = delta * bodyBone.localRotation;
+
+            RunAdjust(bodyArm, clothArm);
+
+            var bodyWorldDelta = bodyBone.rotation * Quaternion.Inverse(bodyRestWorld);
+            var clothWorldDelta = clothBone.rotation * Quaternion.Inverse(clothRestWorld);
+            Assert.That(Quaternion.Angle(clothWorldDelta, bodyWorldDelta), Is.LessThan(0.5f),
+                "フォールバックでも改変分だけがworld deltaとして転送されるべき（余計な90°が乗らない）");
+        }
     }
 }
