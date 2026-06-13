@@ -60,8 +60,8 @@ public class BodyAdjustMatcher
         var clothParentRef = GetRestRotation(cloth.parent, restRotations);
         var positionAxisCorrection = SnapToAxisAligned(Quaternion.Inverse(clothParentRef) * bodyParentRef, axisAlignedRotations);
         var correctedPosition = positionAxisCorrection * body.localPosition;
-        // compare transform and copy if different (with threshold)
-        var localPosition = GetValueWithDifference(correctedPosition, cloth.localPosition);
+        // 位置は絶対メートルしきい値で成分ごとに比較する
+        var localPosition = GetPositionDifference(correctedPosition, cloth.localPosition);
         if (localPosition.HasValue)
         {
             Undo.RecordObject(cloth, "Adjust Body Match");
@@ -72,7 +72,8 @@ public class BodyAdjustMatcher
         var clothRef = GetRestRotation(cloth, restRotations);
         var rotationAxisCorrection = SnapToAxisAligned(Quaternion.Inverse(bodyRef) * clothRef, axisAlignedRotations);
         var correctedRotation = body.localRotation * rotationAxisCorrection;
-        var localRotation = GetValueWithDifference(correctedRotation, cloth.localRotation);
+        // 回転はquaternion全体の角度差で判定する（成分単位ではなく丸ごと）
+        var localRotation = GetRotationDifference(correctedRotation, cloth.localRotation);
         if (localRotation.HasValue)
         {
             Undo.RecordObject(cloth, "Adjust Body Match");
@@ -136,31 +137,39 @@ public class BodyAdjustMatcher
         return changed ? result : (Vector3?)null;
     }
 
-    static Quaternion? GetValueWithDifference(Quaternion from, Quaternion to, float threshold = 0.001f)
+    // 位置の有意差しきい値（メートル絶対）。座標値の大小に依らず一定の物理距離で判定する。
+    const float positionThreshold = 1e-4f;
+
+    // 回転の有意差しきい値（度）。quaternion成分単位ではなく回転角全体で判定する。
+    const float rotationAngleThreshold = 0.05f;
+
+    // 位置: 成分ごとに絶対しきい値で比較し、差のある成分だけ from を採用する
+    internal static Vector3? GetPositionDifference(Vector3 from, Vector3 to)
     {
         var result = to;
         var changed = false;
-        if (HasDifference(from.x, to.x, threshold))
+        if (Mathf.Abs(from.x - to.x) > positionThreshold)
         {
             result.x = from.x;
             changed = true;
         }
-        if (HasDifference(from.y, to.y, threshold))
+        if (Mathf.Abs(from.y - to.y) > positionThreshold)
         {
             result.y = from.y;
             changed = true;
         }
-        if (HasDifference(from.z, to.z, threshold))
+        if (Mathf.Abs(from.z - to.z) > positionThreshold)
         {
             result.z = from.z;
             changed = true;
         }
-        if (HasDifference(from.w, to.w, threshold))
-        {
-            result.w = from.w;
-            changed = true;
-        }
-        return changed ? result : (Quaternion?)null;
+        return changed ? result : (Vector3?)null;
+    }
+
+    // 回転: 角度差がしきい値を超えたら丸ごと from を採用する
+    internal static Quaternion? GetRotationDifference(Quaternion from, Quaternion to)
+    {
+        return Quaternion.Angle(from, to) > rotationAngleThreshold ? from : (Quaternion?)null;
     }
 
     const float smallestSignificantValue = 1e-5f;
