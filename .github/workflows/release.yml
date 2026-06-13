@@ -1,10 +1,10 @@
 name: Build Release
 
-on: 
+on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -14,3 +14,6 @@ jobs:
     uses: Narazaka/vpm-repos/.github/workflows/release.yml@main
     with:
       novcc: false
+      exclude: |
+        Tests
+        Tests.meta
