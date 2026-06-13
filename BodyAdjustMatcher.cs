@@ -1,9 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEditor;
 using VRC.SDK3.Avatars.Components;
 using nadena.dev.modular_avatar.core;
+
+[assembly: InternalsVisibleTo("Narazaka.VRChat.BodyAdjustMatcher.Editor.Tests")]
 
 public class BodyAdjustMatcher
 {
@@ -41,23 +44,35 @@ public class BodyAdjustMatcher
         }
         var prefix = mergeArmature == null ? "" : mergeArmature.prefix;
         var suffix = mergeArmature == null ? "" : mergeArmature.suffix;
-        AdjustRecursive(rootArmature, go.transform, prefix, suffix);
+        var restRotations = BuildRestRotationLookup(root.transform);
+        var axisAlignedRotations = BuildAxisAlignedRotations();
+        AdjustRecursive(rootArmature, go.transform, prefix, suffix, restRotations, axisAlignedRotations);
     }
 
-    static void AdjustRecursive(Transform body, Transform cloth, string prefix, string suffix)
+    internal static void AdjustRecursive(Transform body, Transform cloth, string prefix, string suffix, Dictionary<Transform, Quaternion> restRotations, Quaternion[] axisAlignedRotations)
     {
         if (body == null || cloth == null)
         {
             return;
         }
-        var localPosition = GetValueWithDifference(body.localPosition, cloth.localPosition);
+        // 親フレームの軸オリジン差(90°単位)を補正してから差分比較する
+        var bodyParentRef = GetRestRotation(body.parent, restRotations);
+        var clothParentRef = GetRestRotation(cloth.parent, restRotations);
+        var positionAxisCorrection = SnapToAxisAligned(Quaternion.Inverse(clothParentRef) * bodyParentRef, axisAlignedRotations);
+        var correctedPosition = positionAxisCorrection * body.localPosition;
         // compare transform and copy if different (with threshold)
+        var localPosition = GetValueWithDifference(correctedPosition, cloth.localPosition);
         if (localPosition.HasValue)
         {
             Undo.RecordObject(cloth, "Adjust Body Match");
             cloth.localPosition = localPosition.Value;
         }
-        var localRotation = GetValueWithDifference(body.localRotation, cloth.localRotation);
+        // ボーン自身の軸オリジン差(90°単位)を補正してから差分比較する
+        var bodyRef = GetRestRotation(body, restRotations);
+        var clothRef = GetRestRotation(cloth, restRotations);
+        var rotationAxisCorrection = SnapToAxisAligned(Quaternion.Inverse(bodyRef) * clothRef, axisAlignedRotations);
+        var correctedRotation = body.localRotation * rotationAxisCorrection;
+        var localRotation = GetValueWithDifference(correctedRotation, cloth.localRotation);
         if (localRotation.HasValue)
         {
             Undo.RecordObject(cloth, "Adjust Body Match");
@@ -93,7 +108,7 @@ public class BodyAdjustMatcher
             var childCloth = cloth.Find(prefix + childBody.name + suffix);
             if (childCloth != null)
             {
-                AdjustRecursive(childBody, childCloth, prefix, suffix);
+                AdjustRecursive(childBody, childCloth, prefix, suffix, restRotations, axisAlignedRotations);
             }
         }
     }
@@ -161,5 +176,77 @@ public class BodyAdjustMatcher
             var baseValue = Mathf.Max(Mathf.Abs(from), Mathf.Abs(to));
             return Mathf.Abs(from - to) / baseValue > threshold;
         }
+    }
+
+    internal static Quaternion[] BuildAxisAlignedRotations()
+    {
+        var dirs = new Vector3[]
+        {
+            Vector3.right, Vector3.left,
+            Vector3.up, Vector3.down,
+            Vector3.forward, Vector3.back,
+        };
+        var list = new List<Quaternion>();
+        foreach (var forward in dirs)
+        {
+            foreach (var up in dirs)
+            {
+                // forward と up が直交する組のみ（6 forward × 4 up = 24通り）
+                if (Mathf.Abs(Vector3.Dot(forward, up)) < 0.5f)
+                {
+                    list.Add(Quaternion.LookRotation(forward, up));
+                }
+            }
+        }
+        return list.ToArray();
+    }
+
+    // 入力回転を、軸オリジン差として妥当な 90° 単位の最近傍回転へスナップする
+    internal static Quaternion SnapToAxisAligned(Quaternion q, Quaternion[] axisAlignedRotations)
+    {
+        var best = Quaternion.identity;
+        var bestAngle = float.MaxValue;
+        foreach (var candidate in axisAlignedRotations)
+        {
+            var angle = Quaternion.Angle(q, candidate);
+            if (angle < bestAngle)
+            {
+                bestAngle = angle;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    // 全SkinnedMeshRendererのbindposeから各ボーンのrest(bind時)world回転を集約する
+    internal static Dictionary<Transform, Quaternion> BuildRestRotationLookup(Transform root)
+    {
+        var result = new Dictionary<Transform, Quaternion>();
+        var renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        foreach (var smr in renderers)
+        {
+            var mesh = smr.sharedMesh;
+            if (mesh == null) continue;
+            var bindposes = mesh.bindposes;
+            var bones = smr.bones;
+            var rendererMatrix = smr.transform.localToWorldMatrix;
+            var count = Mathf.Min(bones.Length, bindposes.Length);
+            for (int i = 0; i < count; i++)
+            {
+                var bone = bones[i];
+                if (bone == null || result.ContainsKey(bone)) continue;
+                // bone_rest_l2w = renderer_l2w * bindpose^-1
+                var restMatrix = rendererMatrix * bindposes[i].inverse;
+                result[bone] = restMatrix.rotation;
+            }
+        }
+        return result;
+    }
+
+    // restに有ればそれを正として返し、無ければ現在のworld回転で代用する
+    static Quaternion GetRestRotation(Transform t, Dictionary<Transform, Quaternion> restRotations)
+    {
+        if (t == null) return Quaternion.identity;
+        return restRotations.TryGetValue(t, out var rot) ? rot : t.rotation;
     }
 }
